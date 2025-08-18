@@ -117,6 +117,7 @@ void UStaticMeshGenerator::PopulateStaticMeshWithData(UStaticMesh* Asset) {
 	//TODO not quite exactly the case, because for some LODs the material instances can be different, but we discard any LODs
 	//ensure(Materials.Num() == Asset->StaticMaterials.Num());
 	
+#if false
 	for (int32 i = 0; i < FMath::Min(Materials.Num(), Asset->GetStaticMaterials().Num()); i++) {
 		const TSharedPtr<FJsonObject> MaterialObject = Materials[i]->AsObject();
 		const FName MaterialSlotName = FName(*MaterialObject->GetStringField(TEXT("MaterialSlotName")));
@@ -128,6 +129,34 @@ void UStaticMeshGenerator::PopulateStaticMeshWithData(UStaticMesh* Asset) {
 			StaticMaterial.MaterialInterface = CastChecked<UMaterialInterface>(MaterialInterface);
 		}
 	}
+#else
+	UE_LOG(LogAssetGenerator, Warning, TEXT("[REX] StaticMesh %s material slots:"), *GetPackageName().ToString());
+	for (int32 j = 0; j < Asset->GetStaticMaterials().Num(); j++) {
+		FStaticMaterial& StaticMaterial = Asset->GetStaticMaterials()[j];
+		UE_LOG(LogAssetGenerator, Warning, TEXT("[REX] - %s - %s"), *StaticMaterial.MaterialSlotName.ToString(), *StaticMaterial.ImportedMaterialSlotName.ToString());
+	}
+	for (int32 i = 0; i < Materials.Num(); i++) {
+		const TSharedPtr<FJsonObject> MaterialObject = Materials[i]->AsObject();
+		const FName MaterialSlotName = FName(*MaterialObject->GetStringField(TEXT("MaterialSlotName")));
+		UObject* MaterialInterface = GetObjectSerializer()->DeserializeObject(MaterialObject->GetIntegerField(TEXT("MaterialInterface")));
+
+		bool assigned = false;
+		for (int32 j = 0; j < Asset->GetStaticMaterials().Num(); j++) {
+			FStaticMaterial& StaticMaterial = Asset->GetStaticMaterials()[j];
+			if (MaterialSlotName == StaticMaterial.MaterialSlotName || MaterialSlotName == StaticMaterial.ImportedMaterialSlotName) {
+				StaticMaterial.MaterialSlotName = MaterialSlotName;
+				if (MaterialInterface) {
+					StaticMaterial.MaterialInterface = CastChecked<UMaterialInterface>(MaterialInterface);
+				}
+				assigned = true;
+				break;
+			}
+		}
+		if (!assigned) {
+			UE_LOG(LogAssetGenerator, Warning, TEXT("[REX] Couldn't find a material slot with name %s for StaticMesh %s"), *MaterialSlotName.ToString(), *GetPackageName().ToString());
+		}
+	}
+#endif
 	
 	UObject* NavCollision = GetObjectSerializer()->DeserializeObject(AssetData->GetIntegerField(TEXT("NavCollision")));
 	UObject* BodySetupObject = GetObjectSerializer()->DeserializeObject(AssetData->GetIntegerField(TEXT("BodySetup")));
